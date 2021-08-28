@@ -1,0 +1,501 @@
+---
+title: "QUAIS CARACTERÍSTICAS DO CARRO EXPLICA A SUA EFICIÊNCIA? UMA ANÁLISE EXPLORATÓRIA DA BASE DE DADOS MTCARS"
+author: "Saulo Gil"
+date: "`r Sys.Date()`"
+output:
+    rmdformats::downcute:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+
+```{r include=FALSE}
+library(ggplot2)
+library(patchwork)
+library(corrplot)
+```
+
+## **INTRODUÇÃO**
+
+A base de dados ***r mtcars*** consiste de uma planilha disponível no *base r* cujo os dados foram extraídos da revista *Motor Trend US magazine de 1974*. Os dados inseridos consistem do consumo de combustível, 10 características físicas e/ou performance de 32 automóveis (modelos de 1973-1974). A planilha do r mtcars consiste em 32 obsevações (modelo do carro) com 11 variáveis numéricas.
+
+-   **mpg** = Milhas por galão (do inglês *Miles/(US) gallon)*;
+-   **cyl** = Número de cilindos (do inglês *Number of cylinders)*;
+-   **disp** = Deslocamento do motor (cu.in.)(do inglês *Displacement)*;
+-   **hp** = Cavalos de potência (do inglês *Gross horsepower)*;
+-   **drat** = Razão do eixo traseiro (do inglês *Rear axle ratio*);
+-   **wt** = Peso (1000 lbs)(do inglês *Weight*);
+-   **qsec** = Tempo para percorrer 1/4 de uma milha (do inglês *1/4 mile time)*;
+-   **vs** = Motor (0 = V-shaped, 1 = straight)(do ingês *Engine*);
+-   **am** = Transmissão (0 = automatic, 1 = manual)(do inglês *Transmission)*;
+-   **gear** = Número de eixos dianteiros (do inglês *Number of forward gears*);
+-   **carb** = Número de carburadores (do inglês *Number of carburetors)*.
+
+Uma breve descrição da variáveis pode ser visualizada abaixo e o súmario das variaveis pode ser visualizado na tabela 1.
+
+```{r}
+tibble::glimpse(mtcars)
+```
+
+```{r echo=FALSE, paged.print=TRUE}
+mtcars |> 
+  dplyr::select(where(is.numeric)) |>  
+  tidyr::pivot_longer(cols = everything()) |>
+  dplyr::group_by(name) |> 
+  dplyr::summarise_at("value",
+                      list( 
+                        Paramêtro = ~min(.),
+                        Q1 = ~quantile(., probs = 0.25),
+                        Mediana = ~median(.),
+                        Média = ~mean(.),
+                        "Desvio Padrão" = ~sd(.),
+                        Q3 = ~quantile(., probs = 0.75),
+                        Máximo = ~max(.))) |> 
+  dplyr::mutate_if(is.numeric,
+                   format,
+                   digits = 2,
+                   nsmall = 2
+                      ) |> 
+  knitr::kable(digits = 2,
+               align = "c",
+               caption = "Tabela 1. Estatistíca descritiva de cada variável.") |>
+  kableExtra::kable_paper()
+```
+
+A eficiência de um carro pode ser avaliada, ao menos em parte, pela distância percorrida por unidade de combustível utilizado como, por exemplo, milhas por galão de combustível (expresso na base de dados mtcars como **mpg**). Dado que um carro é composto por um complexo sistema mecânico, é razoávelmente lógico imaginar que outras caracterísitcas do carro possam estar associadas com a sua eficiência. Desta forma, o objetivo deste projeto é buscar, de maneira exploratória, possíveis associações entre distintas características do carro com a variável de eficiência, ou seja, mpg.
+
+## **VERIFICANDO A PRESENÇA DE OUTLIERS**
+
+Uma vez que a presença de dados faltantes pode influenciar na análise dos dados, primeiramente, foi verificada a presença de ***outliers*** utilizando a função md.pattern do [pacote mice](https://cran.r-project.org/web/packages/mice/mice.pdf). Como podemos ver no ***output*** da função, não há dados faltantes nesta base de dados e, portanto, podemos partir para os próximos da passos da análise.
+
+```{r echo=FALSE}
+mice::md.pattern(mtcars,plot = FALSE,)
+```
+
+### **VISUALIZANDO OS DADOS - mpg *vs.* CARACTERÍSTICAS:**
+
+O primeiro passo foi explorar as associações bivariada plotando as distintas variáveis dos carros (eixo x - variável independente) com o mpg (eixo y - variável dependente). Após análise por inspeção visual da nuvem dos dados de cada gráfico é possível identificar alguns padrões de dispersão que sugerem associações lineares entre os diferentes paramêtros do carro com a variável mpg (Figura 1).
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Grafícos de dispersão para verificar "nuvem" ----------------------------
+
+# mpg vs cyl
+
+mpg_cyl <-
+  mtcars |>
+  ggplot(mapping = aes(x = cyl,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. cyl") +
+  theme_classic()
+
+mpg_cyl
+
+# mpg vs disp
+
+mpg_disp <-
+  mtcars |>
+  ggplot(mapping = aes(x = disp,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. disp") +
+  theme_classic()
+
+mpg_disp
+
+# mpg vs hp
+
+mpg_hp <-
+  mtcars |>
+  ggplot(mapping = aes(x = hp,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. hp") +
+  theme_classic()
+
+mpg_hp
+
+# mpg vs draft
+
+mpg_drat <-
+  mtcars |>
+  ggplot(mapping = aes(x = drat,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. drat") +
+  theme_classic()
+
+mpg_drat
+
+# mpg vs wt
+
+mpg_wt <-
+  mtcars |>
+  ggplot(mapping = aes(x = wt,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. wt") +
+  theme_classic()
+
+mpg_wt
+
+# mpg vs qsec
+
+mpg_qsec <-
+  mtcars |>
+  ggplot(mapping = aes(x = qsec,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. qsec") +
+  theme_classic()
+
+
+mpg_qsec
+
+# mpg vs vs
+
+mpg_vs <-
+  mtcars |>
+  ggplot(mapping = aes(x = vs,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. vs") +
+  theme_classic()
+
+mpg_vs
+
+# mpg vs am
+
+mpg_am <-
+  mtcars |>
+  ggplot(mapping = aes(x = am,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. am") +
+  theme_classic()
+
+mpg_am
+
+# mpg vs gear
+
+mpg_gear <-
+  mtcars |>
+  ggplot(mapping = aes(x = gear,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. gear") +
+  theme_classic()
+
+mpg_gear
+
+# mpg vs carb
+
+mpg_carb <-
+  mtcars |>
+  ggplot(mapping = aes(x = carb,
+                       y = mpg)) +
+  geom_point(show.legend = FALSE,
+             color = "blue") +
+  geom_smooth(method = "lm",
+              show.legend = FALSE,
+              color = "red") +
+  labs(title = "mpg vs. carb") +
+  theme_classic()
+
+mpg_carb
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.width=8, message=FALSE, warning=FALSE}
+# Layout com todos os gráficos de dispersão -------------------------------
+
+(mpg_cyl + mpg_disp + mpg_hp) /
+  (mpg_drat + mpg_wt + mpg_qsec) /
+  (mpg_vs + mpg_am + mpg_gear) /
+  (patchwork::plot_spacer() + mpg_carb + patchwork::plot_spacer())
+```
+
+Também foi realizada a correlação bivariada (Pearson) e, corroborando a inspeção visual, nota-se que distintas variáveis apresentam forte associação com a variável mpg.
+
+```{r include=FALSE}
+# matriz de correlação (r, p-value) ---------------------------------------
+
+corr <- round(cor(mtcars),
+              digits = 2)
+
+#função para fazer matriz com os p-value
+
+# mat: matriz da base
+
+# ... : argumentos para passar para a função "cor.test function"
+
+cor.mtest <- function(mat, ...) {
+  mat <- as.matrix(mat)
+  n <- ncol(mat)
+  p.mat<- matrix(NA, n, n)
+  diag(p.mat) <- 0
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      tmp <- cor.test(mat[, i], mat[, j], ...)
+      p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+    }
+  }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+# matriz com os p-value da correlação
+
+p.mat <- cor.mtest(mtcars)
+
+corrplot::corrplot(corr,
+                   method = "number",
+                   type = "upper",title = "Matriz de correlação bivariada")
+
+# Paleta de cores que será utilizada 
+
+col <- colorRampPalette(c("#BB4444",
+                          "#EE9988",
+                          "#FFFFFF",
+                          "#77AADD",
+                          "#4477AA"))
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=5, fig.width=5}
+corrplot::corrplot(corr, method="color",
+         col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", # coeficiente da correlação
+         tl.col="black", tl.srt=45, # cor e inclinação do texto
+         # p-value
+         p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+         # retirando o coeficiente de correlação da mesma variável(diagonal=1)
+         diag=FALSE 
+)
+```
+
+## **MODELAGEM**
+
+Conforme observado nas análises exploratórias acima descritas (gráfico de dispersão e matriz de correlação), há várias relações lineares entre as diferentes características físicas e desempenho do carro com a variável de eficiência, ou seja, mpg. Por conta disso, optei por construir um modelo de regressão utilizando a estratégia de "redução do modelo" onde são inseridas todas as variáveis preditoras candidatas ao modelo e, em seguida, são removidas sistematicamente as variáveis com o valor-p mais alto, um a um, até que você fique com apenas variáveis preditoras significativas.
+
+O descrição do modelo pode ser observado abaixo:
+
+``` lm(mpg ~ wt + cyl + disp + hp + drat + wt + qsec + vs + am + gear + carb, mtcars)```
+
+O retorno da fórmula acima pode ser visto na tabela abaixo:
+
+```{r echo=FALSE, out.width="100%"}
+M1 <- lm(mpg ~ .,mtcars)
+
+parameters::model_parameters(M1) |> 
+  knitr::kable(digits = 2,
+               align = "c",
+               caption = "Tabela 2. Resultados da regressão linear multivariada.") |>
+  kableExtra::kable_paper()
+  
+```
+
+Após observado os valores de p do modelo em cima foi iniciada a estratégia de "redução do modelo". Por fim, o modelo com apenas variáveis preditoras significantes foi o seguinte:
+
+``` lm(mpg ~ wt + qsec + am, mtcars)```
+
+```{r echo=FALSE}
+M7 <- lm(mpg ~ wt + qsec + am, mtcars)
+
+parameters::parameters(M7) |> 
+  knitr::kable(digits = 2,
+               align = "c",
+               caption = "Tabela 3. Resultados da regressão linear multivariada do modelo reduzido.") |>
+  kableExtra::kable_paper()
+```
+
+Embora este modelo se resuma em apenas variáveis preditoras significantes, o que pode ser uma crítica, visto que outras variáveis podem ser importantes mesmo que elas náo apresentem relação significante, a inserção de muitas variáveis preditoras, em contrapartida, pode introduzir ao modelo ruídos aleatórios por conta de *overfitting*. Sendo assim, verificar indicadores de qualidade do modelo se torna fundamental.
+
+## **DIAGNÓSTICO DO MODELO**
+
+Um dos problemas que podem afetar a qualidade do modelo é a multicolinearidade.
+Vale lembrar que a matriz de correlação apresentada anterioremente já indicava distintas correlações entre as variáveis. Um indicador de multicolinearidade é o  "Fator de inflação da Variância (VIF)". Este indicador sugere que variáveis com índices maiores que 5 podem ser excluídos do modelo. Como podemos observar no modelo proposto, o modelo não apresenta problemas com multicolinearidade visto que todos os valores observados são menores que 5 (Tabela 4).
+
+```{r echo=FALSE}
+performance::check_collinearity(M7)|> 
+  knitr::kable(digits = 2, align = "c", caption = "Tabela 4. Fator de Inflação da Variância (VIF) das variáveis inseridas no modelo.") |>
+  kableExtra::kable_paper() 
+```
+
+Os indicadores R2, R2 ajustado e a Raiz do Erro Quadrático Médio são indicadores de qualidade do modelo. Resumidamente, o R2 e R2 ajustado  indicam o quão próximos os dados estão da linha de regressão ajustada. Estes índices variam de 0 á 1, sendo 1 o modelo "perfeito". Já a Raiz do Erro Quadrático Médio consiste na raiz quadrática média dos erros entre valores observados e predições e, sendo assim, quanto menor o valor menor o erro. Como podemos observar na tabela 5, os 3 paramêtros apresentaram valores aceitavéis e, desta maneira, indicam uma qualidade do modelo proposto.
+
+```{r echo=FALSE}
+performance::compare_performance(M7,
+                                 metrics = c("RMSE", "R2", "R2_adj")) |> 
+  knitr::kable(digits = 2, 
+               align = "c",
+               caption = "Tabela 5. Indicadores de qualidade do modelo de regessão.") |>
+  kableExtra::kable_paper()
+```
+A heterocedasticidade consiste na variância dos dados cuja distribuição não é constante. Em particular a heterocedasticidade dos resíduos de um modelo de regressão pode afetar a qualidade da predição e, portanto, não é sugerido que o resíduos apresentem esse padrão de distribuição. Outro indicador de qualidade de modelo é que os resíduos devem apresentar distribuição normal. Ao verificar no layout  mais alto a esquerda e a direita na figura abaixo, o modelo aqui proposto parece asssumir um padrão homocedástico e uma distrivuição normal dos resíduos. 
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.width=8}
+par(mfrow = c(3, 2))
+
+plot(M7, which = 1:5)
+```
+Adicionalmente, foi realizado o teste de heterocedasticidade de Breusch-Pagan e o teste de normalidade de Shapiro-Wilk e ambos os testes rejeitaram a hipótese nula e, portanto, reforçam a sugestão acima de homocedasticidade e normalidade dos resíduos. Embora alguns 3 valores apresentaram uma elevada distância de Cook, estes não apresentaram um elevado fator de alavancagem e, portanto, foram mantidos no modelo. Esses resultados analisados em conjunto sugerem uma boa qualidade no modelo de regressão proposto.
+
+```{r echo=FALSE}
+# Teste de heterocedasticidade de Breusch-Pagan
+
+lmtest::bgtest(M7)
+
+# Normalidade dos resíduos (Shapiro-Wilk test)
+
+norm_test <- broom::augment(M7)
+
+shapiro.test(norm_test$.resid)
+
+```
+
+
+## **EXPLORANDO AS INTERAÇÕES**
+
+O modelo proposto para explicar a eficiência do carro (mpg) envolve as variáveis peso (wt), qsec (*1/4 mile time*) e tramsnmissão (automático ou manual). Embora eu tenha pouco conhecimento sobre mecânica de automóveis, eu imagino que os elementos constituintes para alterar a transmissão do automóvel possam impactar  o peso e a eficiência do automóvel. 
+
+Sendo assim, quando suspeita-se que a inclinação das retas podem variar entre as categorias da variável preditora, no caso transmissão do automóvel, sugere-se testar a interação entre as duas variáveis. A figura abaixo indica o a inclinação das retas considerando a transmissão do automóvel.
+
+```{r include=FALSE}
+# Explorando interações ---------------------------------------------------
+
+# Grafícos de dispersão para verificar "nuvem" ----------------------------
+
+# mpg vs wt
+
+mpg_wt_int <-
+  mtcars |>
+  ggplot(mapping = aes(x = wt,
+                       y = mpg,
+                       color = factor(am))) +
+  geom_point(show.legend = FALSE) +
+  geom_smooth(method = "lm",
+              show.legend = FALSE) +
+  labs(title = "mpg vs. wt",
+       color = "Transmissão manual = 1") +
+  scale_color_brewer(palette = "Set1") +
+  theme_classic()
+
+mpg_wt_int
+
+# mpg vs qsec
+
+mpg_wt_qsec <-
+  mtcars |>
+  ggplot(mapping = aes(x = qsec,
+                       y = mpg,
+                       color = factor(am))) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "mpg vs. qsec",
+       color = "Transmissão manual = 1") +
+  scale_color_brewer(palette = "Set1") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+mpg_wt_qsec
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.width=8, message=FALSE, warning=FALSE}
+
+# patchwork
+
+mpg_wt_int/mpg_wt_qsec
+
+```
+
+Primeiramente, podemos observar que carros com transmissão automática apresentam maior peso e menor eficiência do que carros com transmissão manual. Além disso, nota-se que a variável am (transmissão) influência na inclinação da reta.
+
+Neste sentido foi ajustado o modelo proposto com uma interação entre as variáveis peso (wt) e transmissão (am) do automóvel. O novo modelo ficou da seguinte maneira:
+
+``` lm(mpg ~ qsec + wt * am, mtcars)```
+
+```{r echo=FALSE}
+
+# novo modelo
+
+novo_mod <- lm(mpg ~ qsec + wt * am, mtcars)
+
+parameters::parameters(novo_mod)|> 
+  knitr::kable(digits = 2,
+               align = "c",
+               caption = "Tabela 6. Resultados da regressão linear multivariada do modelo reduzido com interação.") |>
+  kableExtra::kable_paper()
+
+```
+
+Como podemos observar, a inserção da interação entre as variáveis de peso e transmissão do automóvel promoveu um ajuste no modelo de regressão sendo que as variáveis preditores aumentaram o coeficiente e a probabilidade de acerto (todos p < 0.01).
+
+## **DIAGNÓSTICO DO NOVO MODELO**
+
+Afim de testar a qualidade do modelo coma interação, as métricas de diagnóstico foram realizadas novamente. Como podemos observar, tanto a variável am quanto a wt*am apresentaram elevados valores de VIF, indicando multicolinearidade. Considerando que as variáveis com VIF elevado não adicionam ajustes importantes ao modelo, optei por não seguir o diagnóstico deste modelo uma vez que o modelo anteriormente proposto atendeu todos os requisitos de diagnóstico e, portanto, apresentam melhor qualidade.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+performance::check_collinearity(novo_mod)|> 
+  knitr::kable(digits = 2, align = "c", caption = "Tabela 7. Fator de Inflação da Variância (VIF) das variáveis inseridas no novo modelo.") |>
+  kableExtra::kable_paper() 
+```
+
+## **CONCLUSÃO**
+
+O modelo ajustado indica que as variáveis independentes **wt**, **qsec** e **am** estão significativamente associadas com a variável dependente **mpg**. Assim, o modelo proposto fica da seguinte forma:
+
+**mpg = 9.62(intercept) - 3.92 (wt) + 1.23 (qsec) + 2.94 (am)**
+
+Podendo ser descrito como:
+
+
+1) Para cada unidade de peso (1000 libras) aumentada, o carro perderá 3.92 de sua eficiência (milhas por galão);
+
+2) Para cada aumento na variável qsec, o carro aumentará sua eficiência em 1.23 mpg;
+
+3) Quando a transmissão do carro for manual, a eficiência do carro aumentará 2.94 mpg.
+
+Após análise diagnóstica pudemos observar que o modelo proposto apresenta homocedasticidade e normalidade dos dados e nenhum ponto de alavancagem sugerindo uma boa qualidade do modelo proposto.
+
+Pro fim, os resultados analisados em conjunto indicam que carros mais leves, com maior torque e com transmissão manual serão mais eficiêntes e, portanto, farão uma maior distância por galão de combustível.
+
+
+
